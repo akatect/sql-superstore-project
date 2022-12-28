@@ -1,0 +1,1320 @@
+/* Tricia Vickers 
+triciabvickers@gmail.com
+General Assembly Data Analytics cohort Q4 2022
+
+Problem Statement: In this project, I'll be following the Data Analytics Workflow, utilizing a combination of Excel 
+and PostgreSQL to dissect the following business problem related to the Superstore dataset: The Superstore Regional 
+Sales Director would like to know which product category and which customer segment are performing the best and why. 
+Conduct an analysis to identify the best-performing customer segment and make data-driven recommendations based on 
+orders, customers, product categories, and returns.
+
+Questions and Key Data Fields: 
+--	Which items are sold and returned the most and by which customer segments? 
+--	Which factors impact the profitability of products? 
+--	How do regions and salespeople compare by order volume, revenue, profitability and returns? 
+Critical intersections of data include:
+--	Sales and order volume by customer and product segment 
+--	Profitability impact by discount, shipping and returns 
+--	Region and salesperson activity by profit, returns and discounts
+*/
+
+--1.0 EXPLORE THE DATA SET
+
+--1.1 Explore the orders table
+	SELECT *
+	FROM orders
+	LIMIT 10;
+	
+--1.2 Explore the customers table
+	SELECT *
+	FROM customers
+	LIMIT 10;
+
+--1.3 Explore the regions table
+	SELECT *
+	FROM regions
+	LIMIT 10;
+
+--1.4 Explore the products table
+	SELECT *
+	FROM products
+	LIMIT 10;
+
+--1.5 Explore the returns table
+	SELECT *
+	FROM returns
+	LIMIT 10;
+
+--1.6 How many orders are there in this dataset?
+	SELECT count(order_id)
+	FROM orders;
+	--990677
+	
+--1.7 What is the average sales order?
+	SELECT AVG(sales)
+	FROM orders;
+	--$245.76
+
+--1.8 What is the oldest order from the dataset?
+	SELECT MIN(order_date)
+	FROM orders;
+	--order_id: CA-2015-366239    
+    --order_date: 12/18/2015 0:00
+	
+--1.9 What is the most recent order from the dataset?
+	SELECT MAX(order_date)
+	FROM orders;
+	--order_id: UP-2020-2777680	
+	--order_date: 1/30/2020 0:00
+
+--1.10 How many unique products are there?
+	SELECT COUNT(DISTINCT product_name)
+	FROM products;
+	--3679
+
+--1.11 How many orders were returned?
+	SELECT COUNT(DISTINCT order_id)
+	FROM returns
+	WHERE reason_returned IS NOT null;
+	--49725
+
+--1.12 How many sales days are captured?
+	SELECT COUNT(DISTINCT order_date)
+	FROM orders;
+	--1500
+
+--1.13 How many regions are there?
+	SELECT DISTINCT(region)
+	FROM regions;
+	/* 3 rows returned
+	EMEA
+	APAC
+	Americas
+	*/
+
+--1.14 How many different categories and subcategories are there?
+	SELECT DISTINCT category, sub_category 
+	FROM products
+	ORDER BY 1;
+	/* 17 rows returned
+	category			sub_category
+	Furniture			Tables
+	Furniture			Bookcases
+	Furniture			Chairs
+	Furniture			Furnishings
+	Office Supplies		Appliances
+	Office Supplies		Art
+	Office Supplies		Supplies
+	Office Supplies		Storage
+	Office Supplies		Labels
+	Office Supplies		Envelopes
+	Office Supplies		Paper
+	Office Supplies		Fasteners
+	Office Supplies		Binders
+	Technology			Phones
+	Technology			Machines
+	Technology			Copiers
+	Technology			Accessories
+	*/
+	
+--1.15 How many salespeople are there?
+	SELECT COUNT(DISTINCT salesperson)
+	FROM regions;
+	--15
+
+--1.16 What is the average discount?
+	SELECT AVG(discount)
+	FROM orders
+	--24.72%
+	
+/*The dataset is comprised of transactional data containing five tables related to returns, 
+shipping method, customer segments, product categories, profits and discounts for 990,677 orders 
+placed over 1,500 sales days between December 18, 2015 and January 30, 2020. There were 
+49,725 orders returned. There are three regions, with a total of 15 salespeople. There are 
+a total of three different categories which include Office Supplies, Furniture and Technology categories comprised of 
+17 sub-categories and 3679 unique products. The Technology and Furniture categories both have 
+four unique sub-categories while the Office Supplies Categories has nine unique sub-categories.*/ 
+
+--2.0 ANALYZE THE SALES AND ORDER VOLUME BY CUSTOMER SEGMENT AND PRODUCT CATEGORY
+
+--2.1 Calculate the total number of orders.
+	SELECT count(order_id)
+	FROM orders;
+	--990677
+ 
+ --2.2 Calculate the percentage of orders that were returned.
+	SELECT count(reason_returned)
+	FROM returns
+	WHERE reason_returned IS NOT null;
+ 	--49725
+ 	--(49725/990677)*100 = 5.019294886 
+ 	--5.02% of all orders were returned.
+
+--2.3 Calculate the total of sales.
+	SELECT sum(sales) 
+ 	FROM orders; 
+ 	--$243,464,751.70
+    
+--2.4 Calculate the percentage of revenue for orders that were returned.
+	SELECT sum(o.sales)
+	FROM orders o 
+		LEFT JOIN returns r ON o.order_id = r.order_id 
+		WHERE reason_returned IS NOT null;
+	--$22,461,512.76
+ 	--($22,461,512.76/$243,464,751.70)*100= 9.22577605 
+ 	--5.02% of orders returned accounted for a 9.23% return of revenue.
+ 
+--2.5 Prepare a table to analyze the customer segment by the 1000 most profitable orders in Excel to analyze segment-specific customer behaviors.
+	SELECT order_id, profit, sales, discount, ship_mode, o.product_id, c.segment
+	FROM orders o
+		LEFT JOIN customers c ON o.customer_id = c.customer_id 
+		LEFT JOIN products p ON o.product_id = p.product_id
+	ORDER BY 2 DESC
+	LIMIT 1000;
+    /*Reference accompanying Excel workbook, sheet 'Analysis & Charts', Figure 2.5 for export of 1000 rows.
+    
+--2.6 Inserted a PivotTable into cell B1009, reference Figure 2.6.
+    Added the segment field to the rows section.
+	Added the sum of profit (formatted as currency), average of discount (formatted as a percentage), 
+    count of order_id and sum of sales (formatted as currency) to the values section. 
+    Titled this table 'Sales and Profit Volume, Average Discount and Order Totals For 1000 Most Profitable Orders By Customer Segment'.
+	
+--2.7 Copied and pasted the same PivotTable into cell B1017, reference Figure 2.7.
+    Removed the average of discount from the second table.
+	Changed the display of sum of profit, count of orders and sum of sales values to a percentage of column total.
+    Titled the table 'Distribution of Profit, Order and Sales Volume For 1000 Most Profitable Orders'.
+    
+    Finding: The Consumer segment accounts for the largest profits ($375,747.78) versus the Corporate 
+    ($210,444.57) and Home Office ($140,172.19) segments although this segment averaged less discounts 
+    (29.53%) than the Corporate (30.44%) and Home Office (30.63%) segments. The Consumer segment also 
+    accounts for the largest distribution of orders (51.60%) as opposed to the Corporate and Home Office segments 
+    which combined account for less than half (48.40%) of orders.*/
+
+--2.8 Prepare a table to analyze the customer segment and product category of the 1000 least profitable orders in Excel.
+	SELECT order_id, profit, sales, discount, ship_mode, o.product_id, c.segment
+	FROM orders o
+		LEFT JOIN customers c ON o.customer_id = c.customer_id 
+		LEFT JOIN products p ON o.product_id = p.product_id
+	ORDER BY 2 ASC
+	LIMIT 1000; 
+    /*Reference Figure 2.8.
+    
+--2.9 Inserted a PivotTable into cell B2033, reference Figure 2.9.
+    Added the segment field to the rows section.
+	Added the sum of profit (formatted as currency), average of discount (formatted as a percentage), 
+    count of order_id and sum of sales (formatted as currency) to the values section. 
+    Titled this table 'Sales and Profit Volume, Average Discount and Order Totals For 1000 Least Profitable Orders By Customer Segment'.
+	
+--2.10 Copied and pasted the same PivotTable into cell B2041.
+    Removed the average of discount from the second table.
+	Changed the display of sum of profit, count of orders and sum of sales values to a percentage of column total.
+    Titled the table 'Distribution of Profit, Order and Sales Volume For 1000 Least Profitable Orders'.
+    
+    Finding: The Consumer segment accounts for the largest loss of profits (-$248,774.61) versus the 
+    Corporate (-$142,645.53) and Home Office (-$90,605.50) segments. The highest average discount received 
+    was in the Home Office (30.77%) segment which actually only accounted for 16.30% of the overall order 
+    volume for the least profitable 1000 orders. */
+    
+--2.11 How is profit distributed across each product category by sales?
+	SELECT p.category, SUM(o.profit) AS sum_profit
+	FROM orders o
+	JOIN products p ON o.product_id = p.product_id
+	GROUP BY 1;	
+    /* Reference table 2.11 where profit distribution by product category is 
+    formatted as a table.
+   	category		sum_profit
+	Furniture		314572.45
+	Office Supplies	586931.38
+	Technology		672381.83
+    */
+
+--2.11 Created a pie chart to illustrate the distribution of profit by customer segment for the 1000 most profitable orders, reference Figure 2.11.
+
+--2.12 Created a pie chart to illustrate the distribution of order volume by customer segment for the 1000 most profitable orders, reference Figure 2.12.
+
+--2.13 Created a pie chart to illustrate the distribution of sales by customer segment for the 1000 most profitable orders, reference Figure 2.13.
+
+--2.14 Created a pie chart to illustrate the distribution of profit by customer segment for the 1000 least profitable orders, reference Figure 2.14.
+
+--2.15 Created a pie chart to illustrate the distribution of order volume by customer segment for the 1000 least profitable orders, reference Figure 2.15.
+
+--2.16 Created a pie chart to illustrate the distribution of sales by customer segment for the 1000 least profitable orders, reference Figure 2.16.
+
+--2.17 How is profit distributed across each product category by sales?
+	SELECT p.category, SUM(o.profit) AS sum_profit
+	FROM orders o
+		JOIN products p ON o.product_id = p.product_id
+	GROUP BY 1;	
+	/* Reference table 2.17 where profit by product category is formatted as a table.
+	category		sum_profit
+	Furniture		314572.45
+	Office Supplies	586931.38
+	Technology		672381.83
+    */
+
+--2.18 How is profit distributed across each product category in percentages? 
+    /*Inserted a PivotTable in cell B2152 based on the table in Figure 2.17.
+	Placed category in the Rows section and sum_profit into the Values section.
+    Displayed the sum_profit as a calculation of the percentage of column total
+    
+--2.19 How is profit by product category visually distributed?
+    Created a pie chart to illustrate the distribution of profit by product category, reference Figure 2.19. */
+    
+--2.20 How is profit distributed across each product sub-category for all products when sold at a profit?
+    SELECT sub_category, SUM(sales) AS total_sales
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+        WHERE profit > 0
+    GROUP BY 1;
+    --Reference Figure 2.20 for export of 'Sales By Product Sub-Category' Table. Sales formatted as currency.
+
+--2.21 How is profit by sub-category visually distributed based on volume for products when sold at a profit?
+	--Reference Figure 2.21 for bar chart.
+
+--2.22 How is profit distributed across each product sub-category for all products when sold at a loss?
+    SELECT sub_category, SUM(sales) AS total_sales
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+        WHERE profit < 0
+    GROUP BY 1;
+     --Reference Figure 2.22 for export of 'Sales By Product Sub-Category' Table. Sales formatted as currency.
+
+--2.23 How is profit by sub-category visually distributed based on volume for products when sold at a loss?
+	--Reference Figure 2.23 for bar chart.
+
+--2.24 Combined the profits by product sub-category when sold at a profit and a loss to the same table. Reference Figure 2.24.demo
+
+--2.25 Created a table to visually display the average of products sold at a loss by sub-category, reference Figure 2.25.
+	/*Finding: Utilized conditional formatting in Figure 2.20, to identify sub-categories whose sales at profit are 
+    above the average ($13,580,632.37) when observing all sub-categories. The above-average performing sub-categories are: 
+    	Sub-category	Sales Volume At Profit
+        Phones			$31,860,642.69
+        Copiers			$29,943,325.85
+		Bookcases		$28,164,649.82
+        Chairs			$28,143,821.41
+        Storage			$21,279,031.38
+        Appliances		$19,703,602.72
+		Machines		$14,305,156.58
+        Tables			$14,002,558.19
+    Average of the sub-categories sold at a loss represents 1.06%. When using conditional formatting,
+    the following sub-categories are above average sales percentage at a loss: 
+    	Sub-category	Sales Percentage At A Loss
+		Tables			2.40%
+        Fasteners		1.51%
+        Envelopes		1.40%
+        Machines		1.30%
+        Chairs			1.26%
+	By analyzing overlaps in Sales Volume At Profit and Sales Percentage at a loss, the three categories that appear in
+    both tables as over average are Machines, Tables and Chairs. Discounts related to these items should be analyzed
+    and the Superstore should consider sales at a loss in these three categories as a leading indicator of an 
+    above-average increase in lost revenue.*/
+    
+--2.26 Which sub-categories are sold and returned the most often and which are below the average by sub-category?
+    SELECT sub_category, SUM(quantity), SUM(return_quantity)
+    FROM orders o
+    	JOIN returns r ON o.order_id = r.order_id
+   	 	JOIN products p ON o.product_id = p.product_id
+    GROUP BY 1;
+	/*Reference Figure 2.26, adding a column where percentage of returns to sales by item quantity is calculated.
+    All averages below the overall product category average are:
+    	sub_category	percentage_of_returned_quantity
+		Appliances		14.99%
+		Copiers			14.67%
+        Furnishings		15.42%
+		Labels			15.04%
+		Machines		14.76%
+		Supplies		14.32%
+	*/
+--2.27 What is the average cost to consumer for each product by sub_category?
+    SELECT sub_category, AVG(product_cost_to_consumer) AS avg_product_cost
+    FROM orders o
+    	JOIN products p ON o.product_id = p.product_id
+    GROUP BY 1
+    ORDER BY 2 DESC;
+	/*Reference Figure 2.27, where chart displays the average product cost to consumer by sub_category, formatted in currency. 
+	Finding: When considering which product sub-category is the top performing just by sales dollars alone, the
+    Phones category would rank the highest at $32,106,289.16 and it is also below the overall sub-category average of 
+    returns by quantity as well as less than the overall average of sub-categories sold at a loss. But it doesn't rank as 
+    high as other sub-categories when considering its average product cost to consumer and it is below the overall average
+    of items returned by quantity. Considering these factors, Copiers is the Superstore's highest performing product 
+    sub-category, further validating the distribution of profit among categories, that Technology is the strongest.*/
+
+--3.0 IDENTIFY AND ANALYZE FACTORS THAT IMPACT PROFTABILITY
+
+--3.1 Create a regional sales dashboard that displays total sales, average discount, order volume and sum of profit by segment.
+	SELECT rg.region, c.segment, SUM(o.sales) AS sum_of_sales, AVG(o.discount) AS avg_discount, COUNT(o.order_id) AS order_volume, SUM(profit) AS sum_profit
+	FROM orders o
+		JOIN regions rg ON o.region_id = rg.region_id
+		LEFT JOIN customers c ON o.customer_id = c.customer_id
+	GROUP BY 1, 2
+	ORDER BY 1 ASC;
+    /* Created a table in excel, formatting sum of sales and profit in currency and average discount in percentages, 
+    reference Figure 3.1. The table was then conditionally formatted to display a heat map.
+    region		segment		sum_of_sales	avg_discount	order_volume	sum_profit
+	Americas	Consumer	$49,686,352.96	24.69%			204,901			$309,700.99
+	Americas	Corporate	$29,999,236.90	24.79%			119,915			$170,382.29
+	Americas	Home Office	$18,479,456.61	24.71%			74,542			$110,722.78
+	APAC		Consumer	$28,567,293.35	24.71%			117,487			$201,771.85
+	APAC		Corporate	$16,979,330.48	24.84%			68,017			$125,213.64
+	APAC		Home Office	$10,480,992.36	24.81%			42,317			$68,440.52
+	EMEA		Consumer	$45,661,288.18	24.64%			187,153			$294,705.20
+	EMEA		Corporate	$26,896,926.38	24.80%			108,937			$177,355.73
+	EMEA		Home Office	$16,658,815.28	24.71%			67,215			$115,266.34
+
+	Finding: Consistent with previous analysis of performance by segment, the Consumer segment is the again 
+    the leading segment in each of the three regions, when comparing total sales, order volume, average discount 
+    and profit. The Home Office segment has the weakest performance across all segments in each region. This raises 
+    the question:  Which product sub-categories are most likely impacting profits of the Home Office segment in 
+    each region and the Corporate segment in the Americas region?*/
+
+--3.2 What were the total sales, order volume and number of items sold in each product subcategory?
+	SELECT category, p.sub_category, SUM(o.sales) AS sum_of_sales, SUM(o.profit) AS sum_profit, COUNT(order_id) AS num_orders, AVG(discount) AS avg_discount
+	FROM orders o
+		JOIN products p ON o.product_id = p.product_id
+	GROUP BY 1,2;
+    /* Created a table titled Total Sales and Profit, Average Discount, Order Volume and Sum of Profit By Segment,
+    reference Figure 3.2. Formatted the sales and profit as currency and the average discount as a percentage.
+    Utilized conditional formatting to create a heat map.*/
+
+--3.3 Calculate the distribution of the Home Office customer segment's spend across each region and product sub-category.
+    SELECT region, category, sub_category, SUM(sales) AS sum_of_sales, COUNT(order_id) AS order_volume, SUM(profit) AS sum_of_profit, AVG(discount) AS avg_discount
+    FROM orders o
+        JOIN products p ON o.product_id = p.product_id
+        JOIN regions r ON o.region_id = r.region_id
+        JOIN customers c ON o.customer_id = c.customer_id
+    	WHERE segment = 'Home Office'
+    GROUP BY 1,2,3;
+    /* Reference Figure 3.3, table titled 'Home Office Customer Segment Spend By Product Sub-Category'.
+    Finding: There is a significant amount of Tables being sold to the Home Office customre segment at a loss. 
+    This customer segment is also utilizing a significantly high amount of discounts for the Appliances (46%), 
+    Machines (42%), Tables (37%) and Bookcases (36%). The strongest product sub-categories by this customer group 
+    are for products with lower average product cost to consumer: Binders ($20.11), Art ($23.77), Storage ($65.72) 
+    and Paper ($19.40). It's recommended that discounts are offered at a lower rate, but more often in these product 
+    sub-categories.*/
+
+--3.4 Is there any correlation between the discount and sales within the Consumer segment?
+	SELECT CORR(o.discount, o.sales) AS corr_coef_of_discount_and_sales
+  	FROM orders o
+  		JOIN customers c ON o.customer_id = c.customer_id
+   	WHERE c.segment = 'Consumer'
+   	/*corr_coef_of_discount_and_sales = 0.216032792686272 indicating a weak positive relationship. It seems as though
+    product cost to consumer is healthy in the Consumer segment which also contributes to its strong profitability. 
+    Can that be confirmed by an above average need for faster than normal shipping of items?*/
+
+--3.5 What are all of the shipping modes available to customers?
+	SELECT DISTINCT(ship_mode)
+	FROM orders;
+    -- Standard Class, Second Class, First Class, Same Day
+
+--3.6 Calculate the distribution of shipping method by the Consumer segment. 
+	SELECT ship_mode, COUNT(order_id)
+    FROM orders o
+    	JOIN customers c ON o.customer_id = c.customer_id
+    WHERE segment = 'Consumer'
+    GROUP BY 1;
+    /* 	ship_mode		count
+		First Class		26566
+		Same Day		102797
+		Second Class	170939
+		Standard Class	209335
+     */
+ 
+--3.7 Calculate the percentage of orders that were non-standard.
+ 	--(26566 + 102797 + 170939) / (26566 + 102797 + 170939 + 209335) * 100 = 58.9246856096
+    --Finding: 58.92% of Consumers orders are expedited. 
+ 
+--3.8 How many unique products has the Consumer segment purchased?
+    SELECT COUNT(DISTINCT product_name)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Consumer';
+ 	--3545
+ 
+--3.9 How many unique products has the Corporate segment purchased?
+    SELECT COUNT(DISTINCT product_name)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Corporate';
+ 	--3276
+ 
+--3.10 How many unique products has the Home Office segment purchased?
+    SELECT COUNT(DISTINCT product_name)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Home Office';
+ 	--2868
+ 
+--3.11 How many unique sub categories does the Consumer segment shop in?
+    SELECT COUNT(DISTINCT sub_category)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Consumer';
+ 	--17
+ 
+--3.12 How many unique sub categories does the Corporate segment shop in?
+    SELECT COUNT(DISTINCT sub_category)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Corporate';
+ 	--17
+ 
+--3.13 How many unique sub categories does the Home Office segment shop in?
+    SELECT COUNT(DISTINCT sub_category)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE c.segment = 'Office';
+ 	--17
+ 
+ --3.14 How many returns did customers in the Consumer segment make?
+    SELECT SUM(return_quantity)
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE c.segment = 'Consumer';
+ 	--27,992
+ 
+--3.15 How many returns did customers in the Consumer segment make?
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE c.segment = 'Corporate';
+ 	--14,752
+
+--3.16 How many returns did customers in the Home Office segment make?
+    SELECT SUM(return_quantity)
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE c.segment = 'Home Office';
+ 	--10,245
+    
+--3.17 Created a table to analyze the distribution of order volume and returns by customer segment, reference Figure 3.17.
+ 	SELECT segment, COUNT(reason_returned) AS returns, COUNT(o.order_id) AS orders
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        LEFT JOIN returns r ON o.order_id = r.order_id
+    GROUP BY 1;
+    /*		segment			returns		sales
+            Consumer		26739		509637
+            Corporate		14110		296935
+            Home Office		9841		184105
+   	Created a table, reference FIgure 3.17, depicting the returns and sales per customer segment. 
+
+--3.18 Created a PivotTable from Figure 3.17, displaying the distribution of returns and orders as percentages
+	titled, 'Distribution of Returns and Orders By Customer Segment', reference Figure 3.18.
+    
+--3.19 Created Figure 3.19, a pie chart of returns distribution.
+
+--3.20 Created Figure 3.20, a pie chart of orders distribution.
+ 
+ 	Finding: Each customer segment has purchased products in all 17 sub-categories, but the
+    Consumer segment has purchased more unique items (3,545) than the Corporate (3,276) and
+    Home Office (2,868) segments. Since the average discount utilized by each customer segment
+    is similarly around 24.74% and Consumer customers prefer to to use expedited shipping, and 
+    the Consumer segment's average profit ($1.58) is on par with that of the Corporate and Home 
+    Office segment ($1.59), there must be periods where the Corporate and Home Office categories
+    have large amounts of products sold at a loss, also considering that Consumer segment returns
+    proportionate to sales. */
+    
+--3.21 How often is the Superstore selling a product at a loss to each?
+	SELECT segment, COUNT(DISTINCT o.order_id) orders_with_negative_profit 
+	FROM orders o
+	JOIN customers c ON o.customer_id = c.customer_id
+		WHERE profit < 0
+	GROUP BY 1;
+    /*	segment		orders_with_negative_profit
+		Consumer	3798
+		Corporate	2142
+		Home Office	1291
+
+--3.22 Created a PivotTable, displaying the distribution of orders sold to each customer segment at a loss, 
+	refernce Figure 3.22, titled: Orders Sold at a Loss of Profit By Customer Segment'.
+    
+--3.23 Created a pie chart illustrating the distribution of orders sold at a loss of profit by customer segment,
+	reference Figure 3.23.
+    
+    Finding: Figure 3.23 is consistent with the ratios in Figures 3.19 and 3.20. What about considering the sum of profits
+    instead of sum of ordes? */
+
+--3.24 How much are negative profits for orders that the Superstore is selling at a loss?
+	SELECT segment, SUM(profit) orders_with_negative_profit 
+	FROM orders o
+	JOIN customers c ON o.customer_id = c.customer_id
+		WHERE profit < 0
+	GROUP BY 1;
+    /*	segment		orders_with_negative_profit
+		Consumer	3798
+		Corporate	2142
+		Home Office	1291
+
+	Finding: This should proves that the Corporate and Home Office segments are not more often sold products at a loss. This raises
+    the question: Analyze how many days of the year did customers in each segment shop and how that impacted sales, profits 
+    and returns.*/
+ 
+--3.25 How many days of the year did customers in each segment shop in 2016 and calculate sales, profits and returns.
+    SELECT c.segment, COUNT(DISTINCT order_date) AS selling_days, SUM(profit) AS sum_profit, SUM(sales) AS sum_of_sales, SUM(quantity) AS total_items_ordered, 
+    SUM(return_quantity) AS total_items_returned
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2016-01-01' AND '2016-12-31'
+    GROUP BY c.segment;
+    -- See Figure 3.25
+    
+--3.26 How many days of the year did customers in each segment shop in 2017 and calculate sales, profits and returns.
+    SELECT c.segment, COUNT(DISTINCT order_date) AS selling_days, SUM(profit) AS sum_profit, SUM(sales) AS sum_of_sales, SUM(quantity) AS total_items_ordered, 
+    SUM(return_quantity) AS total_items_returned
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2017-01-01' AND '2017-12-31'
+    GROUP BY c.segment;
+    -- See Figure 3.26
+    
+--3.27 How many days of the year did customers in each segment shop in 2018 and calculate sales, profits and returns.
+    SELECT c.segment, COUNT(DISTINCT order_date) AS selling_days, SUM(profit) AS sum_profit, SUM(sales) AS sum_of_sales, SUM(quantity) AS total_items_ordered, 
+    SUM(return_quantity) AS total_items_returned
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2018-01-01' AND '2018-12-31'
+    GROUP BY c.segment;
+    -- See figure 3.27
+
+--3.28 How many days of the year did customers in each segment shop in 2019 and calculate sales, profits and returns.
+	SELECT c.segment, COUNT(DISTINCT order_date) AS selling_days, SUM(profit) AS sum_profit, SUM(sales) AS sum_of_sales, SUM(quantity) AS total_items_ordered, 
+    SUM(return_quantity) AS total_items_returned
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2019-01-01' AND '2019-12-31'
+    GROUP BY c.segment;
+    -- See Figure 3.28
+   
+   /*Finding: There is steady growth of sales, profits and returns in each Customer Segment as the number of selling 
+   days grows year-over-year but there also two years of concern where the Home office segment in in 2018, had a negative
+   sum of profits of $102.81 and the Corporate segment has a low sum of profits at $432.98. This raises the question:
+   Why did the profit of the Home Office segment drop from $3,767.18 in 2017 to -$102.01 in 2018? */
+
+--3.29 How many orders placed in 2018 had a negative profit by segment and what were the sum of their profits?
+	SELECT c.segment, COUNT(DISTINCT o.order_id) AS negative_orders, SUM(profit) AS total_negative_profits
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2018-01-01' AND '2018-12-31' AND profit < 0
+    GROUP BY 1;
+    /* See Figure 3.29, titled 'Total of Orders and Sum of Profits for Orders Sold at a Loss in 2018 By Customer Segment'.
+    
+--3.30 Created a PivotTable illustrating the distributions of data referenced in Figure 3.29 displaying the values of
+	total negative profits and orders sold at a loss as a percentage.
+
+--3.31 Created a pie chart illustrating the distribution of orders sold at a loss of profit by customer segment in 2018,
+	reference Figure 3.31.
+    
+--3.32 Created a pie chart illustrating the distribution of negative profits for orders sold at a loss by customer segment 
+	in 2018, reference Figure 3.32.  
+
+--3.33 Provide feedback to the Superstore regarding which products led to the highest loss of profits in 2018 when sold to 
+	Home Office segment customers. */
+    SELECT c.segment, category, sub_category, product_name, SUM(profit) AS sum_of_negative_profits
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2018-01-01' AND '2018-12-31' AND profit < 0
+    GROUP BY 1,2,3,4
+    ORDER BY 5 ASC
+    LIMIT 10;
+    -- Reference Figure 3.33
+
+	/*Finding: The proportion of these 6 pie charts differs in the last when viewing the mix of products sold at a loss in 
+    2018 to the Home Office segment, which typically accounts for around 17% of aggregate activity in an area but in 2018, 
+    accounted for 9.73% of negative profits. When reviewing the Top 10 items contirbuting to orders sold at a loss, the 
+    Home Office Segment ranks as the  purchasers for the top 3 items: Apple Smart Phone Full Size, Office Star Executive 
+    Leather Armchar, Black and SAFCO Excutive Leather Armchair, Set of Two. The intersection of the phones and chairs 
+    sub-category in the Home Office segment should be paid close attention to. Now, why did the profit of the Corporate 
+    segment from $10,222.35 in 2018 to $432.98 in 2019?*/
+
+--3.34 What was the number of orders and sum of negative profit in 2019 by segment?
+	SELECT segment, COUNT(DISTINCT o.order_id) AS num_of_orders, SUM(profit) AS sum_of_profit
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2019-01-01' AND '2019-12-31' AND profit < 0
+    GROUP BY 1;
+    /*	Reference Figure 3.34
+    	segment			num_of_orders	sum_of_profit
+		Consumer		74				-$8,966.27
+		Corporate		45				-$10,378.81
+		Home Office		24				-$3,162.81
+
+--3.35 Created a PivotTable from Figure 3.34, displaying the distribution of orders and profits for negative orders in
+	2019 as percentages.
+
+--3.36 Created a pie chart illustrating the distribution of orders sold at a loss of profit by customer segment in 2019,
+	reference Figure 3.36.
+    
+--3.37 Created a pie chart illustrating the distribution of negative profits for orders sold at a loss by customer segment 
+	in 2019, reference Figure 3.37.  
+
+--3.38 Provide feedback to the Superstore regarding which products led to the highest loss of profits in 2019 when sold to 
+	Corporate custmer segment. */
+    SELECT c.segment, category, sub_category, product_name, SUM(profit) AS sum_of_negative_profits
+    FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN products p ON o.product_id = p.product_id
+        JOIN returns r ON o.order_id = r.order_id
+    WHERE o.order_date BETWEEN '2018-01-01' AND '2018-12-31' AND profit < 0
+    GROUP BY 1,2,3,4
+    ORDER BY 5 ASC
+    LIMIT 10;
+    /* Reference Figure 3.38
+    
+    Finding: Similiar to negative profits in 2018, the distribution among customer segments varies in 2019. From the typical
+    distribution of around Consumer at 51.75%, Home Office at 16.78% and Corporate at 31.47% to Consumer at 39.84%, Home Office
+    at 14.05% and Corporate leading the share of negative profits at 46.11%. The products contributing to the loss of profits
+    during this time sold to the Corporate segment are: Ibico EPK-21 Electric Binding System, Lesro Training Table, Adjustable 
+    Height, Epson TM-T88V Direct Thermal Printer - Monochrome - Desktop, and Barricks Round Table, with Bottom Storage.*/
+
+--4.0 Impacts on  Region Profitability By Discounts, Shipping and Returns
+
+--4.1 How many orders received a discount?
+	SELECT count(order_id)
+	FROM orders
+	WHERE discount > 0;
+	-- 981740
+    --(981740/990677)*100=99.1% of orders received a discount
+
+--4.2 How often were the items that didn't receive a discount sold?
+	SELECT COUNT(product_name)
+    FROM orders o
+    	JOIN products p ON o.product_id = p.product_id
+    WHERE discount = 0;
+ 	--8937 items were sold without a discount
+    
+--4.3 What are the top 10 items that sold without a discount?
+	SELECT category, sub_category, product_name, COUNT(DISTINCT o.order_id)
+    FROM orders o
+        JOIN products p ON o.product_id = p.product_id
+    WHERE discount = 0
+    GROUP BY 1,2,3
+    ORDER BY 4 DESC
+    LIMIT 10;
+    --Reference Figure 4.3
+    
+--4.4 Is there any overlap with the top 10 items most often sold with a high discount (over 30%)?
+	SELECT category, sub_category, product_name, COUNT(DISTINCT o.order_id)
+    FROM orders o
+        JOIN products p ON o.product_id = p.product_id
+    	WHERE discount > .30
+    GROUP BY 1,2,3
+    ORDER BY 4 DESC
+    LIMIT 10;
+    --Reference Figure 4.4. 
+    --Finding: There is no overlap but the Office Supplies product category does show up significantly on both tables.
+
+--4.5 Out of the 17 sub categories, which sold items without a discount?
+	SELECT category, sub_category, COUNT(DISTINCT order_id)
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    WHERE discount = 0
+	GROUP By 1,2;
+    /*	category		sub_category	count
+        Office Supplies	Binders			1
+        Office Supplies	Envelopes		1552
+        Office Supplies	Fasteners		1610
+        Office Supplies	Labels			1708
+        Office Supplies	Paper			1900
+        Technology		Accessories		1839  */
+
+--4.6 Which customer purchased the only order in the Office Supplies Category without a discount?
+	SELECT customer_name
+    FROM orders o
+      JOIN products p ON o.product_id = p.product_id
+      JOIN customers c ON o.customer_id = c.customer_id
+    WHERE discount = 0 AND sub_category = 'Binders';
+    --Andrew Gjertsen
+
+ --4.7 How often has this customer shopped?
+ 	SELECT COUNT(DISTINCT order_id)
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    WHERE customer_name = 'Andrew Gjertsen';
+    --1,341 rows returned
+    
+--4.8 What is this customer's segment and customer id?
+	SELECT customer_id, segment
+	FROM customers
+	WHERE customer_name = 'Andrew Gjertsen';
+    /*	customer_id	segment
+		AG-10495	Corporate
+		AG-495		Corporate 
+    Two customer id's are returned. Is this an error is '10' added to customer numbers for orders where a return is made?*/
+
+--4.9 Are there orders and returns for customer number AG-10495
+	SELECT *
+    FROM orders o
+      LEFT JOIN products p ON o.product_id = p.product_id
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
+	  LEFT JOIN regions r ON o.region_id = r.region_id
+	  LEFT JOIN returns re ON o.order_id = re.order_id
+    WHERE o.customer_id = 'AG-10495';
+    --1030 rows were returned, some with values for return date, return reason and return quantity. 
+
+--4.10 Are there orders and returns for customer nummber AG-495?
+	SELECT *
+    FROM orders o
+      LEFT JOIN products p ON o.product_id = p.product_id
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
+	  LEFT JOIN regions r ON o.region_id = r.region_id
+	  LEFT JOIN returns re ON o.order_id = re.order_id
+    WHERE o.customer_id = 'AG-495';
+    /*347 orders were returned, but all return date, reason returned or return quantity values were null, Reference table 4.10.
+    I wish I would've figured this out sooner in this project but now I know that all orders including returns associated
+    with each customer have a '10' added immediately after the '-' in their customer number, making this field 8 characters.*/
+
+--4.11 How many countries has this customer shopped in?
+	SELECT COUNT(DISTINCT country) AS num_of_countries
+    FROM orders o
+        LEFT JOIN regions r ON o.region_id = r.region_id
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+    WHERE c.customer_id = 'AG-10495' 
+    --93 countries
+    /* Finding: The customer or customer(s) named Andrew Gjertsen is a Corporate customer who has placed 1341 orders in 69 
+    countries. I would recommend that the Superstore further analyze shipping location-specific data for its Corporate 
+    customers.*/
+    
+--4.12 The Tables sub-category was the least profitable among segments. Analyze this sub-category by region.
+	SELECT reason_returned, COUNT(DISTINCT o.order_id), region
+    FROM orders o
+        JOIN products p ON o.product_id = p.product_id
+        LEFT JOIN regions r ON o.region_id = r.region_id
+        LEFT JOIN returns re ON o.order_id = re.order_id
+    WHERE p.sub_category = 'Tables' AND return_quantity > 0
+	GROUP BY 1,3
+    --Reference Figure 4.12
+    
+--4.13 Created a PivotTable to analyze the top reasons returned.
+	--Finding: The majority of the reasons given related to the returns of Tables, is either wrong item or wrong color.
+
+--4.14 Analyze products that include 'assembled' in the product name.
+	SELECT DISTINCT(product_name), SUM(sales) AS sum_of_sales 
+    FROM products p
+    	LEFT JOIN orders o ON o.product_id = p.product_id
+    WHERE product_name ILIKE '%assembled%' AND sub_category = 'Tables'
+    GROUP BY 1
+    ORDER BY 2 DESC
+    LIMIT 10;
+    /*	product_name								sum_of_sales
+		Bevis Conference Table, Fully Assembled		405854.85
+        Bevis Computer Table, Fully Assembled		188193.19
+        Hon Wood Table, Fully Assembled				184569.08
+        Lesro Wood Table, Fully Assembled			183236.05
+        Lesro Conference Table, Fully Assembled		179354.16
+        Hon Computer Table, Fully Assembled			162786.14
+        Hon Training Table, Fully Assembled			154982.43
+        Barricks Conference Table, Fully Assembled	143823.42
+        Barricks Wood Table, Fully Assembled		130083.84
+        Lesro Computer Table, Fully Assembled		106442.46 */
+
+--4.15 How many products are there in the Tables sub-category include 'assembled' in the product name?
+        SELECT COUNT(DISTINCT product_name)
+       		FROM products 
+        WHERE sub_category = 'Tables' AND product_name  ILIKE '%assembled%';
+ 		--31
+        
+--4.16 How many products are there in the Tables sub-category do not include 'assembled' in the product name?
+    SELECT COUNT(DISTINCT product_name)
+    FROM products 
+    WHERE sub_category = 'Tables' AND product_name  NOT LIKE '%assembled%';
+ 	--168
+
+--4.17 How many Tables were sold that included 'assembled' in the product name?
+    SELECT SUM(sales) AS sum_of_sales_for_assembled_tables, COUNT(quantity) AS quantity_of_sales_for_assembled_tables
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Tables' AND product_name  ILIKE '%assembled%';
+    /*	sum_of_sales_for_assembled_tables	quantity_of_sales_for_assembled_tables
+		$2,937,015.98						3219  */
+
+--4.18 How many Tables were sold that did not include 'assembled' in the product name?
+    SELECT SUM(sales) AS sum_of_sales_for_unassembled_tables, COUNT(quantity) AS quantity_of_sales_for_unassembled_tables
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Tables' AND product_name  NOT LIKE '%assembled%'
+    /*	sum_of_sales_for_unassembled_tables	quantity_of_sales_for_unassembled_tables
+		$14,342,554.42						16459  
+
+-4.19 Created Figure 4.19, with data for sales of assembled and unassembled tables.
+	--Finding: Based on sales, there is no noticeable difference in sales between products that include 'Assembled' in their product 
+    name and those that do not. */
+    
+--4.20 Calculate average sales, discount and product cost to consumer for unassembled tables
+    SELECT AVG(sales) AS average_sales, AVG(discount) AS average_discount, AVG(product_cost_to_consumer) AS average_product_cost_to_consumer
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Tables' AND product_name ILIKE '%assembled%';
+    /*	average_sales	average_discount	average_product_cost_to_consumer
+		$912.40			36.20%				$272.18								*/
+        
+--4.21 Calculate average sales, discount and product cost to consumer for unassembled tables.
+	SELECT AVG(sales) AS average_sales, AVG(discount) AS average_discount, AVG(product_cost_to_consumer) AS average_product_cost_to_consumer
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Tables' AND product_name NOT LIKE '%assembled%';
+    /* 	average_sales	average_discount	average_product_cost_to_consumer
+		$871.41			36.14%				$266.28							
+        
+    Finding: Average sales orders for assembled products are less than 1% higher than the average sales 
+    of tables not marketed as assembled. The average product cost to the consumer for assembled tables 
+    is $5.90 higher yet both of these sections of the sub-category receive an average of 36% in discounts 
+    from orders. It's recommended to lessen discounts received on full assembled tables. Analyze products 
+    that include 'premium' in the product name. */
+
+--4.22 What are the category, sub-category, product ID and sales for the top 10 products sold with 'premium' in the product name?
+	SELECT DISTINCT(product_name), sub_category, category, COUNT(sales) AS total_sales
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE product_name ILIKE '%premium%'
+    GROUP BY 1,2,3
+    ORDER BY 4 DESC
+    LIMIT 10;
+    --Reference Figure 4.22
+    -- Finding: The items sold most often that include 'premium' in their product name is paper which falls in the Office Supplies category.
+
+--4.23 How many products are there in the Paper sub-category include 'premium' in the product name?
+	SELECT COUNT(DISTINCT product_name)
+    FROM products 
+    WHERE sub_category = 'Paper' AND product_name  ILIKE '%premium%';
+    --34
+    
+--4.24 How many products are there in the Tables sub-category do not include 'premium' in the product name?
+	SELECT COUNT(DISTINCT product_name)
+    FROM products 
+    WHERE sub_category = 'Paper' AND product_name  NOT LIKE '%premium%';
+ 	--376
+    -- 34/376*100 = 9.0426 
+    -- Finding: The portion of paper that include 'premium' in their product name represent 9.04% of the unique products in the Paper sub-category.
+
+--4.25 How much paper was sold that included 'premium' in the product name?
+	SELECT SUM(sales) AS sum_of_sales_for_premium_paper, COUNT(quantity) AS quantity_of_sales_for_premium_paper
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Paper' AND product_name  ILIKE '%premium%';
+    /* 	sum_of_sales_for_premium_paper	quantity_of_sales_for_premium_paper
+		$918,117.36						12,624										*/
+        
+--4.26 How much Paper was sold that did not include 'premium' in the product name?
+	SELECT SUM(sales) AS sum_of_sales_for_nonpremium_paper, COUNT(quantity) AS quantity_of_sales_for_nonpremium_paper
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Paper' AND product_name  NOT LIKE '%premium%';
+    /*	sum_of_sales_for_nonpremium_paper	quantity_of_sales_for_nonpremium_paper
+		$4,690,635.69						67,996									*/
+
+--4.27 Created table with Sum of Sales, Products and Orders for Premium and Non-premium Paper, reference FIgure 4.27.
+
+--4.28 Created a PivotTablet to illustrate the distribution of products, sales and orders for premium and non-premium paper.
+	
+    --Finding: Premium paper products account for 8.29% of the paper sub-category, yet they attribute to 16.37% of sales and 15.66% of item volume. 
+
+--4.29 Calculate average sales, discount and product cost to consumer for premium paper.
+	SELECT AVG(sales) AS average_sales, AVG(discount) AS average_discount, AVG(product_cost_to_consumer) AS average_product_cost_to_consumer
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Paper' AND product_name ILIKE '%premium%';
+    --Reference Figure 4.29.
+
+--4.30 Calculate average sales, discount and product cost to consumer for non-premium paper.
+    SELECT AVG(sales) AS average_sales, AVG(discount) AS average_discount, AVG(product_cost_to_consumer) AS average_product_cost_to_consumer
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE sub_category = 'Paper' AND product_name NOT LIKE '%premium%';
+    --Reference Figure 4.30
+
+	--((72.73-68.98)/68.98)*100=5.4364
+ 
+	--((20.93-19.4)/19.4)*100=7.8866
+ 
+	--((15.15-16.20)/16.20)*100=-6.4815
+    
+    /*Finding: Average sales orders for premium paper is 5.44% higher than the average sales for paper not marketed as premium.
+   The average product cost to consumer for premium tables is about 7.89% higher than non-premium paper. The average discount 
+   utilized for premium products is 6.48% less than non-premium paper. This seems like a good example of discount and 
+   cost-to-consumer differentiation between these two sections of the paper sub-category unlike assembled and non-assembled
+   Tables. */
+
+--4.31 What is the performance and description of the top 10 products in the Technology category?
+	SELECT DISTINCT(product_name), SUM(sales) AS total_sales, SUM(quantity) AS total_units_sold, AVG(discount) AS average_discount, 
+    	AVG(product_cost_to_consumer) AS average_product_cost_to_consumer
+    FROM products p
+    JOIN orders o ON o.product_id = p.product_id
+    WHERE category = 'Technology'
+    GROUP BY 1
+    ORDER BY 2 DESC
+	LIMIT 10;
+    --Reference Figure 4.32.
+    /* Finding: The top ten items sold by total sales in the Technology product category all include attributes related to their 
+    manufacturer, their size and features including being 'smart', having Caller ID enabled and cordless. 
+    
+--4.32 Prepare a table of all products in the Technology category with 'Apple' in the product name, including their total sales, 
+	total units sold, average discount and average product cost to consumer. 
+    Reference Figure 4.32. */
+    
+--4.33 What is the average discount of the Technology product category?
+    SELECT AVG(discount)
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    WHERE category = 'Technology';
+    --27.37%
+
+--4.34 Calculate the variance of the Superstore's average discount and the Technology category's average discount.
+	-- ((27.37-24.72)/24.72)*100=10.7201
+
+--4.35 What is the average discount of Apple products and associated accessories?
+	SELECT AVG(discount)
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    WHERE category = 'Technology' AND product_name LIKE '%Apple%'
+	--25.67%
+
+--4.36 Calculate Apple Product's average discount variance from that of the Superstore?
+	-- ((25.67-24.72)/24.72)*100=3.843
+	/* While the average discount per item for Technology products is 10.72% higher than the average discounts utilized 
+    on all orders, the average discounts of Apple products and associated accessories are only 3.84% higher. */
+
+--4.37 Analyze the shipping method for all items returns.
+	SELECT ship_mode, COUNT(reason_returned)
+    FROM orders o
+    JOIN returns r ON o.order_id = r.order_id
+    GROUP BY 1
+    --Reference Figure 4.37.
+    
+--4.38 Prepare a table so that regression can be run on the ship mode's impact on profitability for the 500 most profitable orders.
+	SELECT o.order_id, profit, discount, sales, product_cost_to_consumer, ship_mode,
+    CASE
+        WHEN ship_mode = 'Same Day' THEN 4
+        WHEN ship_mode = 'First Class' THEN 3
+        WHEN ship_mode = 'Second Class' THEN 2
+        WHEN ship_mode = 'Standard Class' THEN 1
+    	ELSE 1
+    	END AS ship_mode_num
+    FROM orders o
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN products p ON o.product_id = p.product_id
+    GROUP BY 1,2,3,4,5,6
+    ORDER BY 2 DESC
+    LIMIT 500;
+    --Reference Figure 4.38.
+    
+--4.39 Calculate the correlation between ship mode and profit.
+	-- -.01 indicating a weak negative relationship.
+
+--4.40 Calculate the correlation between discount and profit.
+	-- .12 indicating a weak positve relationship.
+
+--4.41 Calculate the correlation between product-cost-to-customer and profit.
+	-- .46 indicating a strong positive relationship.
+	
+    -- Finding: There is no strong correlation between ship mode or discount with profit.
+
+--4.42 How often does a customer who selected 'Not needed' as the reason returned, purchase the same item again?
+	SELECT DISTINCT(customer_name)
+    FROM orders o
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers c ON o.customer_id = c.customer_id
+    WHERE reason_returned = 'Not Needed'
+    LIMIT 3;
+    /*	customer_name
+        Alan Hwang
+        Beth Thompson
+        John Stevenson
+        */
+
+--4.43 Analyze returns made by Alan Hwang when the reason given for the return was 'Not Needed'.
+    SELECT o.order_id, segment, customer_name, product_name, o.product_id, order_date, quantity, return_date, return_quantity
+    FROM orders o
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE reason_returned = 'Not Needed' AND customer_name = 'Alan Hwang'
+    LIMIT 3;
+    -- Reference Figure 4.43.
+    
+    /* Finding: After further analysis of Alan Hwang's purchases, there were three orders made for seven Acme Steel 
+    Trimmer, after which, one was returned by the customer as not needed. This item isn't typically a high-turn over 
+    product, so this customer may need to be placed into the Corporate category if his purchases exhibits buying behaviors 
+    of a reseller. */
+
+--4.44 Analyze returns made by Beth Thompson when the reason given for the return was 'Not Needed'.
+    SELECT o.order_id, segment, customer_name, product_name, o.product_id, order_date, quantity, return_date, return_quantity
+    FROM orders o
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    WHERE reason_returned = 'Not Needed' AND customer_name = 'Beth Thompson';
+    --Reference Figure 4.44.
+
+--4.45 Were the 10 most common items purchased similar to the 10 most common items returned?
+	SELECT product_name, SUM(quantity), sub_category
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    GROUP BY 1,3
+    ORDER BY 2 DESC
+    LIMIT 10;
+    --Reference Figure 4.45.
+    
+--4.46 What were the 10 top items returned by quantity?
+	SELECT product_name, SUM(return_quantity) AS return_quantity, sub_category
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE return_quantity > 0
+    GROUP BY 1,3
+    ORDER BY 2 DESC
+    LIMIT 10;
+    --Reference Figure 4.46.
+    
+--4.47 What is the average amount of days each customer segment waits to make a return?
+    SELECT segment, AVG(AGE(order_date, return_date)) AS return_duration
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers C on o.customer_id = c.customer_id
+    WHERE return_date IS NOT NULL
+    GROUP BY 1;
+    --Reference Figure 4.47.
+    
+--4.48 What is the average amount of time customers wait to return items by product sub-category?
+	SELECT sub_category, AVG(AGE(order_date, return_date)) AS return_duration
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers C on o.customer_id = c.customer_id
+    WHERE return_date IS NOT NULL
+    GROUP BY 1;
+    --Reference Figure 4.48.
+
+--4.49 What is the average amount of time customers wait to return items purchased by sub-category when the order is more than $245.76?
+	SELECT sub_category, AVG(AGE(order_date, return_date)) AS return_duration
+    FROM orders o
+    JOIN products p ON o.product_id = p.product_id
+    JOIN returns r ON o.order_id = r.order_id
+    JOIN customers C on o.customer_id = c.customer_id
+    WHERE return_date IS NOT NULL AND sales > 245.76
+    GROUP BY 1;
+    --Reference Figure 4.49.
+
+--4.50 Which items are on average, returned the fastest?
+	SELECT DISTINCT category, sub_category, product_name, AVG(AGE(order_date, return_date)) AS return_duration
+    FROM orders o
+      JOIN products p ON o.product_id = p.product_id
+      JOIN returns r ON o.order_id = r.order_id
+      JOIN customers C on o.customer_id = c.customer_id
+    WHERE return_date IS NOT NULL 
+    GROUP BY 1,2,3
+    ORDER BY 4 DESC
+    LIMIT 10;
+
+--4.51 How many salespeople are there in each region?
+    SELECT DISTINCT count(salesperson), region 
+    FROM regions
+    GROUP BY region;
+	--Reference Figure 4.51.
+    
+ --4.52 EMEA has the largest amount of salespeople. Does it also have the largest amount of orders?
+ 	SELECT r.region, COUNT( DISTINCT order_id)
+    FROM orders o
+    LEFT JOIN regions r ON o.region_id = r.region_id
+    GROUP BY 1;
+    -- Reference Figure 4.52.
+
+--4.53 Analyze why there is a NULL value 
+    SELECT o.order_id
+    FROM orders o
+    JOIN regions r ON o.region_id = r.region_id
+    WHERE r.region IS NULL;
+ 	-- No results. Unable to determine why there are 193 records with no region listed. 
+
+--4.53 Created a pie chart to illustrate the distribution of salespeople in each region. Reference Figure 5.54
+
+--4.54 Created a pie chart to illustrate the distribution of orders by region. Reference Figure 5.54. 
+
+	-- Finding: Although EMEA accounts for a large majority of Salespeople by region, the Americas region accounts for the largest portion of sales. 
+	-- Do some salespeople work more than others?
+
+--4.55 How many sales days does each salesperson work?
+    SELECT DISTINCT salesperson, COUNT(DISTINCT order_date)
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    GROUP BY 1;
+    --Reference Figure 5.55. 
+    --Finding: The only outlier is Lucy Tremblay. Did she start at the Superstore in December 2015 with the others?
+    
+ --4.56 When did Luca Tremblay start selling at the Superstore?
+ 	SELECT o.order_date
+    FROM orders o
+    LEFT JOIN regions r ON o.region_id = r.region_id
+    WHERE salesperson = 'Luca Tremblay'
+    ORDER BY 1
+	LIMIT 1;
+    --2016-01-07 00:00:00
+
+	--Finding: Luca Tremblay will be excluded from analysis since this employee seemingly works part time.
+    
+--4.57 Create a heatmap for returns by salesperson
+	How do quarterly returns trend by salesperson?
+ 
+    -- 2016 Q1
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2016-01-01' AND '2016-03-31'
+    GROUP BY 1;
+
+    -- 2016 Q2
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2016-04-01' AND '2016-06-30'
+    GROUP BY 1;
+
+    -- 2016 Q3
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2016-07-01' AND '2016-09-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2016 Q4
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2016-10-01' AND '2016-12-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2017 Q1
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2017-01-01' AND '2017-03-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2017 Q2
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2017-04-01' AND '2017-06-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2017 Q3
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2017-07-01' AND '2017-09-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2017 Q4
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2017-10-01' AND '2017-12-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2018 Q1
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2018-01-01' AND '2018-03-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2018 Q2
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2018-04-01' AND '2018-06-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1;
+
+    -- 2018 Q3
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2018-07-01' AND '2018-09-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+    -- 2018 Q4
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2018-10-01' AND '2018-12-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+    -- 2019 Q1
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2019-01-01' AND '2019-03-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+    -- 2019 Q2
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2019-04-01' AND '2019-06-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+    -- 2019 Q3
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2019-07-01' AND '2019-09-30' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+    -- 2019 Q4
+    SELECT salesperson, COUNT(r.order_id) AS return_volume
+    FROM orders o
+    JOIN regions rg ON o.region_id = rg.region_id
+    JOIN returns r ON o.order_id = r.order_id
+    WHERE order_date BETWEEN '2019-10-01' AND '2019-12-31' AND salesperson <> 'Luca Tremblay'
+    GROUP BY 1
+    ORDER BY 1;
+
+	--Reference Figure 5.57.
+    /* Finding: Based on each salesperson working a similar amount of days between December 18, 2015 and January 30,2020,
+    the top 5 salespeople with above-average returns are: Anna Andreadi, Beatrice Top, Chuck Magee, Deborah Brumfield and
+    Giulietta Dortch. 
